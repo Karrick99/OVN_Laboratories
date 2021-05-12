@@ -1,4 +1,5 @@
 import Lab3.Elements as elems
 
 N = elems.Network()
-print(dir(N))
+lista = N.find_paths("A", "D")
+print(lista)

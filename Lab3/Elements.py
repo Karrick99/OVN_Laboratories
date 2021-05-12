@@ -91,3 +91,42 @@ class Network:
     def __distance(self, pos1, pos2):
         dist = math.sqrt((pos2[0] - pos1[0]) ** 2 + (pos2[1] - pos1[1]) ** 2)
         return dist
+
+    def connect(self):
+        """sets the 'successive' attribute of nodes and lines as a dictionary"""
+        #valutare cambiamenti
+        for key in self.nodes:
+            self.nodes[key].successive = {}
+
+        for key in self.lines:
+            self.lines[key].successive = {}
+
+    def paths_search(self, target, stack, paths):
+        current = self.nodes[stack[-1]]
+        if current.label != target:
+            for n in current.connected_nodes:
+                if n not in stack:
+                    stack.append(n)
+                    self.paths_search(target, stack, paths)
+                    stack.pop()
+        else:
+            new_path = stack[:]
+            paths.append(new_path)
+            return
+
+        return
+
+    def find_paths(self, src, target):
+        """returns the list of all paths between s1 and s2"""
+        paths = []
+        stack = [src]
+
+        if target not in self.nodes.keys():
+            return paths
+
+        self.paths_search(target, stack, paths)
+        return paths
+
+    def propagate(self, signal_inf_obj):
+        """Propagates the signal_information object through path """
+        
