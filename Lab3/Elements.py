@@ -1,7 +1,8 @@
 #
 import json
 import math
-
+import numpy as np
+import matplotlib.pyplot as plt
 
 class Signal_information:
     def __init__(self, signal_power, path):
@@ -94,7 +95,7 @@ class Network:
 
     def connect(self):
         """sets the 'successive' attribute of nodes and lines as a dictionary"""
-        #valutare cambiamenti
+        # chiedere chiarimenti in merito a cosa devo fare qui dentro
         for key in self.nodes:
             self.nodes[key].successive = {}
 
@@ -129,4 +130,25 @@ class Network:
 
     def propagate(self, signal_inf_obj):
         """Propagates the signal_information object through path """
-        
+        label = signal_inf_obj.get_path[0]
+        self.nodes[label].propagate(signal_inf_obj)
+
+    def draw(self):
+
+        for key in self.lines:
+            nodes_string = self.lines[key].label
+            n1 = nodes_string[0]
+            n2 = nodes_string[1]
+            xvals = self.nodes[n1].get_position()[0], self.nodes[n2].get_position()[0]
+            yvals = self.nodes[n1].get_position()[1], self.nodes[n2].get_position()[1]
+            plt.plot(xvals, yvals, 'y', linewidth=2, markersize=12)
+
+        for key in self.nodes:
+            x, y = self.nodes[key].get_position()
+            plt.plot(x, y, 'bo')
+            plt.annotate(text=self.nodes[key].label, xy=(x, y), xytext=(x + 10000, y + 10000))
+
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.grid()
+        plt.show()
