@@ -4,6 +4,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import sys
 
 class Signal_information:
     def __init__(self, signal_power, path):
@@ -204,7 +205,7 @@ class Network:
         plt.show()
 
     def find_best_snr(self, input_node, output_node):
-        """Returns the path with higher latency from input_node to output_node"""
+        """Returns the path with highest latency from input_node to output_node"""
         paths = self.weighted_paths.path.values
         best_snr = 0.0
         best_snr_path = ""
@@ -219,4 +220,22 @@ class Network:
 
         return best_snr_path
 
+    def find_best_latency(self, input_node, output_node):
+        """Returns the path with lowest latency from input_node to output_node"""
+        paths = self.weighted_paths.path.values
+
+        #vedere se è corretto:
+        best_latency = sys.float_info.max
+
+        best_latency_path = ""
+        for p in paths:
+            if p[0] == input_node:
+                if p[-1] == output_node:
+                    current_latency = self.weighted_paths.loc[self.weighted_paths['path'] == p]['total latency'].values[0]
+                    if best_latency > current_latency:
+                        best_latency = current_latency
+                        # valutare se fornire path senza frecce nel mezzo
+                        best_latency_path = p
+
+        return best_latency_path
     
