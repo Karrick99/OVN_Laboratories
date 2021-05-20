@@ -3,6 +3,7 @@ import json
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 class Signal_information:
     def __init__(self, signal_power, path):
@@ -48,6 +49,12 @@ class Node:
     def get_connected_nodes(self):
         return self.connected_nodes
 
+    def set_successive(self, line_label, line_obj):
+        self.successive[line_label] = line_obj
+
+    def get_successive(self, line_label):
+        return self.successive[line_label]
+
 
 class Line:
     """Connection between two nodes"""
@@ -57,6 +64,9 @@ class Line:
         self.label = label
         self.length = length
         self.successive = {}
+
+    def set_successive(self, node_label, node_obj):
+        self.successive[node_label] = node_obj
 
     def latency_generation(self):
         t = self.length / ((5 * 10 ** 5) * 2 / 3)
@@ -89,18 +99,58 @@ class Network:
                                                 self.__distance(self.nodes[key].get_position(),
                                                                 self.nodes[target].get_position()))
 
+        #creation of the pandas dataframe:
+
+
+        path_sep = "->"
+        tab = []
+        # ogni volta che finisco temp_row
+        # faccio tab.append(temp_row)
+        # alla fine faccio self.weighted_paths = pd.DataFrame(tab, columns_list)
+
+        self.connect()
+
+        columns_list = ["path", "total latency", "total noise", "SNR [dB]"]
+
+        for key1 in self.nodes:
+            for key2 in self.nodes:
+                if key1 != key2:
+                    for p in self.find_paths(key1, key2):
+                        total_latency = 0
+                        total_noise = 0
+                        snr = 0
+                        # for every line in path, add its latency and noise
+                        for i in range(len(p)-1):
+                            line_temp = self.nodes[p[i]].get_successive(p[i]+p[i+1])
+                            total_latency += line_temp.latency_generation()
+                            total_noise += line_temp.noise_generation(1)
+
+                        # CALCOLO DEL SNR
+                        if total_noise != 0 :
+                            snr = 10 * np.log(1 / total_noise)
+
+                        temp_row = [path_sep.join(p), total_latency, total_noise, snr]
+                        tab.append(temp_row)
+
+        self.weighted_paths = pd.DataFrame(tab)
+        self.weighted_paths.columns = columns_list
+
+        print(self.weighted_paths)
+
     def __distance(self, pos1, pos2):
         dist = math.sqrt((pos2[0] - pos1[0]) ** 2 + (pos2[1] - pos1[1]) ** 2)
         return dist
 
     def connect(self):
         """sets the 'successive' attribute of nodes and lines as a dictionary"""
-        # chiedere chiarimenti in merito a cosa devo fare qui dentro
-        for key in self.nodes:
-            self.nodes[key].successive = {}
 
-        for key in self.lines:
-            self.lines[key].successive = {}
+        for key1 in self.nodes:
+            n = self.nodes[key1]
+            for key2 in n.connected_nodes:
+                n.set_successive(key1+key2, self.lines[key1+key2])
+                self.lines[key1+key2].set_successive(key2, self.nodes[key2])
+
+
 
     def paths_search(self, target, stack, paths):
         current = self.nodes[stack[-1]]
@@ -142,7 +192,6 @@ class Network:
             xvals = self.nodes[n1].get_position()[0], self.nodes[n2].get_position()[0]
             yvals = self.nodes[n1].get_position()[1], self.nodes[n2].get_position()[1]
             plt.plot(xvals, yvals, 'y', linewidth=2, markersize=12)
-
         for key in self.nodes:
             x, y = self.nodes[key].get_position()
             plt.plot(x, y, 'bo')
@@ -152,3 +201,7 @@ class Network:
         plt.ylabel('y')
         plt.grid()
         plt.show()
+
+
+
+    
