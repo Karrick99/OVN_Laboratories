@@ -135,7 +135,8 @@ class Network:
         self.weighted_paths = pd.DataFrame(tab)
         self.weighted_paths.columns = columns_list
 
-        print(self.weighted_paths)
+        # print(self.weighted_paths)
+        # print(self.weighted_paths.path.values)
 
     def __distance(self, pos1, pos2):
         dist = math.sqrt((pos2[0] - pos1[0]) ** 2 + (pos2[1] - pos1[1]) ** 2)
@@ -202,6 +203,20 @@ class Network:
         plt.grid()
         plt.show()
 
+    def find_best_snr(self, input_node, output_node):
+        """Returns the path with higher latency from input_node to output_node"""
+        paths = self.weighted_paths.path.values
+        best_snr = 0.0
+        best_snr_path = ""
+        for p in paths:
+            if p[0] == input_node:
+                if p[-1] == output_node:
+                    current_snr = self.weighted_paths.loc[self.weighted_paths['path'] == p]['SNR [dB]'].values[0]
+                    if best_snr < current_snr:
+                        best_snr = current_snr
+                        # valutare se fornire path senza frecce nel mezzo
+                        best_snr_path = p
 
+        return best_snr_path
 
     
