@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import sys
 
+
 class Signal_information:
     def __init__(self, signal_power, path):
         self.signal_power = signal_power
@@ -100,8 +101,7 @@ class Network:
                                                 self.__distance(self.nodes[key].get_position(),
                                                                 self.nodes[target].get_position()))
 
-        #creation of the pandas dataframe:
-
+        # creation of the pandas dataframe:
 
         path_sep = "->"
         tab = []
@@ -121,13 +121,13 @@ class Network:
                         total_noise = 0
                         snr = 0
                         # for every line in path, add its latency and noise
-                        for i in range(len(p)-1):
-                            line_temp = self.nodes[p[i]].get_successive(p[i]+p[i+1])
+                        for i in range(len(p) - 1):
+                            line_temp = self.nodes[p[i]].get_successive(p[i] + p[i + 1])
                             total_latency += line_temp.latency_generation()
                             total_noise += line_temp.noise_generation(1)
 
                         # CALCOLO DEL SNR
-                        if total_noise != 0 :
+                        if total_noise != 0:
                             snr = 10 * np.log(1 / total_noise)
 
                         temp_row = [path_sep.join(p), total_latency, total_noise, snr]
@@ -149,10 +149,8 @@ class Network:
         for key1 in self.nodes:
             n = self.nodes[key1]
             for key2 in n.connected_nodes:
-                n.set_successive(key1+key2, self.lines[key1+key2])
-                self.lines[key1+key2].set_successive(key2, self.nodes[key2])
-
-
+                n.set_successive(key1 + key2, self.lines[key1 + key2])
+                self.lines[key1 + key2].set_successive(key2, self.nodes[key2])
 
     def paths_search(self, target, stack, paths):
         current = self.nodes[stack[-1]]
@@ -210,13 +208,11 @@ class Network:
         best_snr = 0.0
         best_snr_path = ""
         for p in paths:
-            if p[0] == input_node:
-                if p[-1] == output_node:
+            if p[0] == input_node and p[-1] == output_node:
                     current_snr = self.weighted_paths.loc[self.weighted_paths['path'] == p]['SNR [dB]'].values[0]
                     if best_snr < current_snr:
                         best_snr = current_snr
-                        # valutare se fornire path senza frecce nel mezzo
-                        best_snr_path = p
+                        best_snr_path = p.replace('->', '')
 
         return best_snr_path
 
@@ -224,18 +220,24 @@ class Network:
         """Returns the path with lowest latency from input_node to output_node"""
         paths = self.weighted_paths.path.values
 
-        #vedere se è corretto:
+        # vedere se è corretto:
         best_latency = sys.float_info.max
 
         best_latency_path = ""
         for p in paths:
-            if p[0] == input_node:
-                if p[-1] == output_node:
+            if p[0] == input_node and  p[-1] == output_node:
                     current_latency = self.weighted_paths.loc[self.weighted_paths['path'] == p]['total latency'].values[0]
                     if best_latency > current_latency:
                         best_latency = current_latency
-                        # valutare se fornire path senza frecce nel mezzo
-                        best_latency_path = p
-
+                        best_latency_path = p.replace('->', '')
         return best_latency_path
-    
+
+
+
+class Connection:
+    def __init__(self):
+        self.input: str
+        self.output: str
+        self.signal_power: float
+        self.latency: float = 0
+        self.snr: float = 0
