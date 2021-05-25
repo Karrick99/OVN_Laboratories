@@ -12,7 +12,7 @@ class Signal_information:
         self.signal_power = signal_power
         self.noise_power = 0.0
         self.latency = 0.0
-        self.path = path[:]
+        self.path: str = path
 
     def update_pwr(self, signal_pwr_incr):
         self.signal_power = self.signal_power + signal_pwr_incr
@@ -24,7 +24,7 @@ class Signal_information:
         self.latency = self.latency + latency_incr
 
     def update_path(self):
-        self.path.pop(0)
+        self.path = self.path[1:]
 
     def get_path(self):
         return self.path
@@ -39,11 +39,12 @@ class Node:
 
     def propagate(self, signal_inf_obj):
         """propagates the signal to the end of the path"""
-
-        line_lable = signal_inf_obj.path[0] + signal_inf_obj.path[1]
-        signal_inf_obj.update_path()
-        next_element = self.successive[line_lable]
-        next_element.propagate(signal_inf_obj)
+        if len(signal_inf_obj.path) > 1:
+            line_label = signal_inf_obj.path[0] + signal_inf_obj.path[1]
+            signal_inf_obj.update_path()
+            next_line = self.successive[line_label]
+            signal_inf_obj = next_line.propagate(signal_inf_obj)
+        return signal_inf_obj
 
     def get_position(self):
         return self.position
@@ -81,7 +82,9 @@ class Line:
     def propagate(self, signal_inf_obj):
         signal_inf_obj.update_latency(self.latency_generation())
         signal_inf_obj.update_noise(self.noise_generation(signal_inf_obj.signal_power))
-        # signal_inf_obj.get_path[1]
+        next_node = self.successive[signal_inf_obj.path[0]]
+        signal_inf_obj = next_node.propagate(signal_inf_obj)
+        return signal_inf_obj
 
 
 class Network:
@@ -124,17 +127,16 @@ class Network:
                         for i in range(len(p) - 1):
                             line_temp = self.nodes[p[i]].get_successive(p[i] + p[i + 1])
                             total_latency += line_temp.latency_generation()
-                            total_noise += line_temp.noise_generation(1)
+                            total_noise += line_temp.noise_generation(1e-4)
 
                         # CALCOLO DEL SNR
                         if total_noise != 0:
-                            snr = 10 * np.log(1 / total_noise)
+                            snr = 10 * np.log10(10e-4 / total_noise)
 
                         temp_row = [path_sep.join(p), total_latency, total_noise, snr]
                         tab.append(temp_row)
 
-        self.weighted_paths = pd.DataFrame(tab)
-        self.weighted_paths.columns = columns_list
+        self.weighted_paths = pd.DataFrame(tab, columns=columns_list)
 
         # print(self.weighted_paths)
         # print(self.weighted_paths.path.values)
@@ -180,8 +182,10 @@ class Network:
 
     def propagate(self, signal_inf_obj):
         """Propagates the signal_information object through path """
-        label = signal_inf_obj.get_path[0]
-        self.nodes[label].propagate(signal_inf_obj)
+        path_to_propagate : str = signal_inf_obj.get_path()
+        label = path_to_propagate[0]
+        # modificata qua:
+        return self.nodes[label].propagate(signal_inf_obj)
 
     def draw(self):
 
@@ -203,20 +207,22 @@ class Network:
         plt.show()
 
     def find_best_snr(self, input_node, output_node):
+        # migliorabile/ottimizzabile
         """Returns the path with highest latency from input_node to output_node"""
         paths = self.weighted_paths.path.values
         best_snr = 0.0
         best_snr_path = ""
         for p in paths:
             if p[0] == input_node and p[-1] == output_node:
-                    current_snr = self.weighted_paths.loc[self.weighted_paths['path'] == p]['SNR [dB]'].values[0]
-                    if best_snr < current_snr:
-                        best_snr = current_snr
-                        best_snr_path = p.replace('->', '')
+                current_snr = self.weighted_paths.loc[self.weighted_paths['path'] == p]['SNR [dB]'].values[0]
+                if best_snr < current_snr:
+                    best_snr = current_snr
+                    best_snr_path = p.replace('->', '')
 
         return best_snr_path
 
     def find_best_latency(self, input_node, output_node):
+        # migliorabile/ottimizzabile
         """Returns the path with lowest latency from input_node to output_node"""
         paths = self.weighted_paths.path.values
 
@@ -225,19 +231,67 @@ class Network:
 
         best_latency_path = ""
         for p in paths:
-            if p[0] == input_node and  p[-1] == output_node:
-                    current_latency = self.weighted_paths.loc[self.weighted_paths['path'] == p]['total latency'].values[0]
-                    if best_latency > current_latency:
-                        best_latency = current_latency
-                        best_latency_path = p.replace('->', '')
+            if p[0] == input_node and p[-1] == output_node:
+                current_latency = self.weighted_paths.loc[self.weighted_paths['path'] == p]['total latency'].values[0]
+                if best_latency > current_latency:
+                    best_latency = current_latency
+                    best_latency_path = p.replace('->', '')
         return best_latency_path
 
+    def stream(self, connections_list, parameter='latency'):
+        processed_conn = []
+        for conn in connections_list:
+            input_node = conn.input
+            output_node = conn.output
+            signal_power = conn.signal_power
+            if parameter == 'snr':
+                path = self.find_best_snr(input_node, output_node)
+            elif parameter == 'latency':
+                path = self.find_best_latency(input_node, output_node)
+            else:
+                print("Parameter not recognized (it should be 'snr' or 'latency')")
+                return []
+
+            if len(path) > 1:
+                # futuri task
+                input_signal = Signal_information(signal_power, path)
+                output_signal = self.propagate(input_signal)
+                conn.latency = output_signal.latency
+
+                if output_signal.noise_power != 0:
+                    conn.snr = 10 * np.log10(signal_power / output_signal.noise_power)
+
+            else:
+                conn.latency = 0
+                conn.snr = 0
+
+            processed_conn.append(conn)
+
+        return processed_conn
 
 
 class Connection:
-    def __init__(self):
-        self.input: str
-        self.output: str
-        self.signal_power: float
+    def __init__(self, input, output, signal_power):
+        self.input: str = input
+        self.output: str = output
+        self.signal_power: float = signal_power
         self.latency: float = 0
         self.snr: float = 0
+
+
+if __name__ == '__main__':
+    N = Network()
+    # print(N.weighted_paths)
+    # var = N.weighted_paths[N.weighted_paths.where(
+    # N.weighted_paths['path'][0] == 'A' and N.weighted_paths['path'][-1] == 'D')]
+    # print(N.weighted_paths['path'][0] == 'A' and N.weighted_paths['path'][-1] == 'D')
+
+    conn_list = [Connection('A', 'F', 1e-4), Connection('C', 'D', 2e-4), Connection("F", "B", 3e-4)]
+
+    a = N.stream(conn_list, 'latency')
+    print(a[0].snr)
+
+    # ancora da fare commit del Connection funzionante
+
+    # problema [RISOLTO!]: il path nell'oggetto Signal_information è come lista,
+    # ma noi lo prendiamo/usiamo come stringa e questo crea problemi

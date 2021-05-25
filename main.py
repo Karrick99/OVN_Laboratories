@@ -10,8 +10,10 @@ N = elems.Network()
 
 # N.draw()
 
-snr_path = N.find_best_snr("A", "E")
+snr_path = N.find_best_snr("A", "C")
 print(snr_path)
 
-latency_path = N.find_best_latency("A", "E")
-print(latency_path)
+
+
+#latency_path = N.find_best_latency("A", "E")
+#print(latency_path)
