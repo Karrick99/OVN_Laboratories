@@ -67,9 +67,19 @@ class Line:
         self.label = label
         self.length = length
         self.successive = {}
+        self.state = 'free'
 
     def set_successive(self, node_label, node_obj):
         self.successive[node_label] = node_obj
+
+    def set_free(self):
+        self.state = 'free'
+
+    def set_occupied(self):
+        self.state = 'occupied'
+
+    def is_free(self):
+        return self.state == 'free'
 
     def latency_generation(self):
         t = self.length / ((5 * 10 ** 5) * 2 / 3)
@@ -182,7 +192,7 @@ class Network:
 
     def propagate(self, signal_inf_obj):
         """Propagates the signal_information object through path """
-        path_to_propagate : str = signal_inf_obj.get_path()
+        path_to_propagate: str = signal_inf_obj.get_path()
         label = path_to_propagate[0]
         # modificata qua:
         return self.nodes[label].propagate(signal_inf_obj)
@@ -212,12 +222,21 @@ class Network:
         paths = self.weighted_paths.path.values
         best_snr = 0.0
         best_snr_path = ""
-        for p in paths:
+
+        for p_df in paths:
+            p = p_df.replace('->', '')
             if p[0] == input_node and p[-1] == output_node:
-                current_snr = self.weighted_paths.loc[self.weighted_paths['path'] == p]['SNR [dB]'].values[0]
-                if best_snr < current_snr:
-                    best_snr = current_snr
-                    best_snr_path = p.replace('->', '')
+                current_snr = self.weighted_paths.loc[self.weighted_paths['path'] == p_df]['SNR [dB]'].values[0]
+                if current_snr > best_snr:
+                    is_free = True
+                    for i in range(0, len(p) - 1):
+                        label = p[i] + p[i + 1]
+                        current_line = self.lines[label]
+                        is_free = is_free and current_line.is_free()
+
+                    if is_free:
+                        best_snr = current_snr
+                        best_snr_path = p
 
         return best_snr_path
 
@@ -230,12 +249,21 @@ class Network:
         best_latency = sys.float_info.max
 
         best_latency_path = ""
-        for p in paths:
+        for p_df in paths:
+            p = p_df.replace('->', '')
             if p[0] == input_node and p[-1] == output_node:
-                current_latency = self.weighted_paths.loc[self.weighted_paths['path'] == p]['total latency'].values[0]
-                if best_latency > current_latency:
-                    best_latency = current_latency
-                    best_latency_path = p.replace('->', '')
+                current_latency = self.weighted_paths.loc[self.weighted_paths['path'] == p_df]['total latency'].values[0]
+                if current_latency < best_latency:
+                    is_free = True
+                    for i in range(0, len(p) - 1):
+                        label = p[i] + p[i + 1]
+                        current_line = self.lines[label]
+                        is_free = is_free and current_line.is_free()
+
+                    if is_free:
+                        best_latency = current_latency
+                        best_latency_path = p
+
         return best_latency_path
 
     def stream(self, connections_list, parameter='latency'):
@@ -262,8 +290,8 @@ class Network:
                     conn.snr = 10 * np.log10(signal_power / output_signal.noise_power)
 
             else:
-                conn.latency = 0
-                conn.snr = 0
+                conn.latency = None
+                conn.snr = 0.0
 
             processed_conn.append(conn)
 

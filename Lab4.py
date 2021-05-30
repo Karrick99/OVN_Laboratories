@@ -19,17 +19,13 @@ while i < 100:
     n2 = random.choices(nodes)[0]
     if n1 != n2:
         conn = elems.Connection(n1, n2, 1)
-        if i % 2 == 0:
-            param = 'latency'
-        else:
-            param = 'snr'
+
+        param = 'snr'
 
         N.stream([conn], param)
         snrs.append(conn.snr)
         print(conn.snr)
         i = i + 1
-
-snrs.sort()
 
 plt.hist(snrs)
 plt.xlabel('snr')
