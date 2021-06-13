@@ -30,6 +30,12 @@ class Signal_information:
         return self.path
 
 
+class Lightpath(Signal_information):
+    def __init__(self, signal_power, path, channel):
+        super().__init__(signal_power, path)
+        self.channel = channel
+
+
 class Node:
     def __init__(self, key, d):
         self.label = key
@@ -37,14 +43,14 @@ class Node:
         self.connected_nodes = d['connected_nodes'][:]
         self.successive = {}
 
-    def propagate(self, signal_inf_obj):
+    def propagate(self, lightpath_obj, occupation=False):
         """propagates the signal to the end of the path"""
-        if len(signal_inf_obj.path) > 1:
-            line_label = signal_inf_obj.path[0] + signal_inf_obj.path[1]
-            signal_inf_obj.update_path()
+        if len(lightpath_obj.path) > 1:
+            line_label = lightpath_obj.path[0] + lightpath_obj.path[1]
+            lightpath_obj.update_path()
             next_line = self.successive[line_label]
-            signal_inf_obj = next_line.propagate(signal_inf_obj)
-        return signal_inf_obj
+            lightpath_obj = next_line.propagate(lightpath_obj, occupation)
+        return lightpath_obj
 
     def get_position(self):
         return self.position
@@ -63,23 +69,22 @@ class Line:
     """Connection between two nodes"""
 
     def __init__(self, label, length):
-        # potrebbe servire costruttore per assegnare length e lable
         self.label = label
         self.length = length
         self.successive = {}
-        self.state = 'free'
+        self.state = ['free'] * 10
 
     def set_successive(self, node_label, node_obj):
         self.successive[node_label] = node_obj
 
-    def set_free(self):
-        self.state = 'free'
+    def set_free(self, channel):
+        self.state[channel] = 'free'
 
-    def set_occupied(self):
-        self.state = 'occupied'
+    def set_occupied(self, channel):
+        self.state[channel] = 'occupied'
 
-    def is_free(self):
-        return self.state == 'free'
+    def is_free(self, channel):
+        return self.state[channel] == 'free'
 
     def latency_generation(self):
         t = self.length / ((5 * 10 ** 5) * 2 / 3)
@@ -89,18 +94,32 @@ class Line:
         n = signal_power * self.length * 1e-9
         return n
 
-    def propagate(self, signal_inf_obj):
-        signal_inf_obj.update_latency(self.latency_generation())
-        signal_inf_obj.update_noise(self.noise_generation(signal_inf_obj.signal_power))
-        next_node = self.successive[signal_inf_obj.path[0]]
-        signal_inf_obj = next_node.propagate(signal_inf_obj)
-        return signal_inf_obj
+    # valutare se mettere qua controllo free o lasciarlo in network
+
+    def propagate(self, lightpath_obj, occupation=False):
+        # latency and noise update
+        lightpath_obj.update_latency(self.latency_generation())
+        lightpath_obj.update_noise(self.noise_generation(lightpath_obj.signal_power))
+
+        # successive node, propagate
+        next_node = self.successive[lightpath_obj.path[0]]
+        lightpath_obj = next_node.propagate(lightpath_obj)
+
+        # update line state
+        if occupation:
+            channel = lightpath_obj.channel
+            self.set_occupied(channel)
+
+        return lightpath_obj
 
 
 class Network:
     def __init__(self):
         self.nodes = {}
         self.lines = {}
+        self.weighted_paths = None
+        self.route_space = None
+
 
         with open("nodes.json", "r") as in_file:
             data = json.load(in_file)
@@ -118,9 +137,6 @@ class Network:
 
         path_sep = "->"
         tab = []
-        # ogni volta che finisco temp_row
-        # faccio tab.append(temp_row)
-        # alla fine faccio self.weighted_paths = pd.DataFrame(tab, columns_list)
 
         self.connect()
 
@@ -137,16 +153,23 @@ class Network:
                         for i in range(len(p) - 1):
                             line_temp = self.nodes[p[i]].get_successive(p[i] + p[i + 1])
                             total_latency += line_temp.latency_generation()
-                            total_noise += line_temp.noise_generation(1e-4)
+                            total_noise += line_temp.noise_generation(1e-3)
+
 
                         # CALCOLO DEL SNR
                         if total_noise != 0:
-                            snr = 10 * np.log10(10e-4 / total_noise)
+                            snr = 10 * np.log10(1e-3 / total_noise)
 
                         temp_row = [path_sep.join(p), total_latency, total_noise, snr]
                         tab.append(temp_row)
 
         self.weighted_paths = pd.DataFrame(tab, columns=columns_list)
+
+        self.route_space = pd.DataFrame(columns=['path']+[str(i) for i in range(10)])
+        self.route_space.path = self.weighted_paths.path
+        self.route_space.fillna('free', inplace=True)
+
+
 
         # print(self.weighted_paths)
         # print(self.weighted_paths.path.values)
@@ -165,6 +188,8 @@ class Network:
                 self.lines[key1 + key2].set_successive(key2, self.nodes[key2])
 
     def paths_search(self, target, stack, paths):
+        """recursive function to search all the possible paths between two nodes"""
+
         current = self.nodes[stack[-1]]
         if current.label != target:
             for n in current.connected_nodes:
@@ -216,6 +241,8 @@ class Network:
         plt.grid()
         plt.show()
 
+    #aggiungere available paths
+
     def find_best_snr(self, input_node, output_node):
         # migliorabile/ottimizzabile
         """Returns the path with highest latency from input_node to output_node"""
@@ -223,18 +250,13 @@ class Network:
         best_snr = 0.0
         best_snr_path = ""
 
+        #
         for p_df in paths:
             p = p_df.replace('->', '')
             if p[0] == input_node and p[-1] == output_node:
                 current_snr = self.weighted_paths.loc[self.weighted_paths['path'] == p_df]['SNR [dB]'].values[0]
-                if current_snr > best_snr:
-                    is_free = True
-                    for i in range(0, len(p) - 1):
-                        label = p[i] + p[i + 1]
-                        current_line = self.lines[label]
-                        is_free = is_free and current_line.is_free()
-
-                    if is_free:
+                if 'free' in self.route_space[self.route_space['path'] == p_df].values:
+                    if current_snr > best_snr:
                         best_snr = current_snr
                         best_snr_path = p
 
@@ -252,26 +274,25 @@ class Network:
         for p_df in paths:
             p = p_df.replace('->', '')
             if p[0] == input_node and p[-1] == output_node:
-                current_latency = self.weighted_paths.loc[self.weighted_paths['path'] == p_df]['total latency'].values[0]
-                if current_latency < best_latency:
-                    is_free = True
-                    for i in range(0, len(p) - 1):
-                        label = p[i] + p[i + 1]
-                        current_line = self.lines[label]
-                        is_free = is_free and current_line.is_free()
+                current_latency = self.weighted_paths.loc[self.weighted_paths['path'] == p_df]['total latency'].values[
+                    0]
+                if 'free' in self.route_space[self.route_space['path'] == p_df].values:
 
-                    if is_free:
+                    if current_latency < best_latency:
                         best_latency = current_latency
                         best_latency_path = p
 
         return best_latency_path
 
     def stream(self, connections_list, parameter='latency'):
+        """Streams a list of connections choosing their paths for snr or latency"""
+
         processed_conn = []
         for conn in connections_list:
             input_node = conn.input
             output_node = conn.output
             signal_power = conn.signal_power
+
             if parameter == 'snr':
                 path = self.find_best_snr(input_node, output_node)
             elif parameter == 'latency':
@@ -281,13 +302,25 @@ class Network:
                 return []
 
             if len(path) > 1:
-                # futuri task
-                input_signal = Signal_information(signal_power, path)
-                output_signal = self.propagate(input_signal)
-                conn.latency = output_signal.latency
+                # take the first free channel in route_space:
+                path_df = self.reformat_path(path)
+                path_occupation_list = self.route_space.loc[self.route_space['path'] == path_df].values[0][1:]
 
-                if output_signal.noise_power != 0:
-                    conn.snr = 10 * np.log10(signal_power / output_signal.noise_power)
+                free_channel = [i for i in range(len(path_occupation_list)) if path_occupation_list[i] == 'free'][0]
+
+
+                input_lightpath = Lightpath(signal_power, path, free_channel)
+                output_lightpath = self.propagate(input_lightpath)
+                conn.latency = output_lightpath.latency
+
+
+
+                if output_lightpath.noise_power != 0:
+                    conn.snr = 10 * np.log10(signal_power / output_lightpath.noise_power)
+
+                # set the used channel as occupied for the paths with lines in common
+
+                self.occupy_channel(path, free_channel)
 
             else:
                 conn.latency = None
@@ -296,6 +329,39 @@ class Network:
             processed_conn.append(conn)
 
         return processed_conn
+
+    def reformat_path(self, path):
+        path_list = [str(i + '->') for i in path[:-1]] + [path[-1]]
+        path_string = ''
+        return path_string.join(path_list)
+
+    def occupy_channel(self, path, free_channel):
+        """Occupies the channel in current path and every path that with lines in common"""
+        path_df_1 = self.reformat_path(path)
+
+        # control of every path in order to find common lines:
+
+        for path_df_2 in self.route_space.path.values:
+            if self.intersection_lines(path_df_1, path_df_2):
+                # devo settare come occupato il canale
+                row = self.route_space[self.route_space['path'] == path_df_2].values
+                row[0][free_channel + 1] = "occupied"
+                self.route_space[self.route_space['path'] == path_df_2] = row
+
+
+
+    def intersection_lines(self, path1, path2):
+        """returns True if there is a line in common between two paths"""
+        # the paths are passed as string with the separator '->'
+        lines_list_1 = [path1[i * 3: i * 3 + 4] for i in range(len(path1) // 3)]
+        lines_list_2 = [path2[i * 3: i * 3 + 4] for i in range(len(path2) // 3)]
+
+        for l1 in lines_list_1:
+            for l2 in lines_list_2:
+                if l1 == l2:
+                    return True
+
+        return False
 
 
 class Connection:

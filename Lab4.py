@@ -31,4 +31,8 @@ plt.hist(snrs)
 plt.xlabel('snr')
 plt.ylabel('cases')
 
+print(N.weighted_paths)
+
 plt.show()
+
+print(N.route_space)
