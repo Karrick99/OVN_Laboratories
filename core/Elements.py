@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import sys
+from scipy.special import erfcinv
 
 
 class Signal_information:
@@ -42,6 +43,11 @@ class Node:
         self.position = d['position'][:]
         self.connected_nodes = d['connected_nodes'][:]
         self.successive = {}
+        self.switching_matrix = None
+        if 'transceiver' in d:
+            self.transceiver = d['transceiver']
+        else:
+            self.transceiver = 'fixed_rate'
 
     def propagate(self, lightpath_obj, occupation=False):
         """propagates the signal to the end of the path"""
@@ -63,6 +69,7 @@ class Node:
 
     def get_successive(self, line_label):
         return self.successive[line_label]
+
 
 
 class Line:
@@ -121,7 +128,8 @@ class Network:
         self.route_space = None
 
 
-        with open("nodes.json", "r") as in_file:
+        #with open("nodes.json", "r") as in_file:
+        with open("Lab7/nodes_full_shannon.json", "r") as in_file:
             data = json.load(in_file)
 
         for key in data:
@@ -158,12 +166,16 @@ class Network:
 
                         # CALCOLO DEL SNR
                         if total_noise != 0:
+
                             snr = 10 * np.log10(1e-3 / total_noise)
+
 
                         temp_row = [path_sep.join(p), total_latency, total_noise, snr]
                         tab.append(temp_row)
 
         self.weighted_paths = pd.DataFrame(tab, columns=columns_list)
+
+        #ROUTE_SPACE CREATION:
 
         self.route_space = pd.DataFrame(columns=['path']+[str(i) for i in range(10)])
         self.route_space.path = self.weighted_paths.path
@@ -183,9 +195,22 @@ class Network:
 
         for key1 in self.nodes:
             n = self.nodes[key1]
+            n.switching_matrix = dict()
+
             for key2 in n.connected_nodes:
                 n.set_successive(key1 + key2, self.lines[key1 + key2])
                 self.lines[key1 + key2].set_successive(key2, self.nodes[key2])
+                # task lab 6:
+                # add the current element
+                n.switching_matrix.update({key2: {key2: [0]*10}})
+                for key in n.switching_matrix:
+                    if key != key2:
+                        n.switching_matrix[key2].update({key: [1]*10})
+                        n.switching_matrix[key].update({key2: [1]*10})
+
+            print(n.switching_matrix)
+            print("\n")
+
 
     def paths_search(self, target, stack, paths):
         """recursive function to search all the possible paths between two nodes"""
@@ -301,7 +326,14 @@ class Network:
                 print("Parameter not recognized (it should be 'snr' or 'latency')")
                 return []
 
+            #controllo connessione
+
             if len(path) > 1:
+                # calculation of the bit rate
+                conn.bit_rate = self.calculate_bit_rate(path, self.nodes[path[0]].transceiver)
+
+            if len(path) > 1 and conn.bit_rate > 0:
+
                 # take the first free channel in route_space:
                 path_df = self.reformat_path(path)
                 path_occupation_list = self.route_space.loc[self.route_space['path'] == path_df].values[0][1:]
@@ -322,11 +354,16 @@ class Network:
 
                 self.occupy_channel(path, free_channel)
 
+                processed_conn.append(conn)
+
             else:
+                # case of refused connection
                 conn.latency = None
                 conn.snr = 0.0
+                # decide if put here an error message
 
-            processed_conn.append(conn)
+
+
 
         return processed_conn
 
@@ -338,6 +375,7 @@ class Network:
     def occupy_channel(self, path, free_channel):
         """Occupies the channel in current path and every path that with lines in common"""
         path_df_1 = self.reformat_path(path)
+
 
         # control of every path in order to find common lines:
 
@@ -363,6 +401,41 @@ class Network:
 
         return False
 
+    def calculate_bit_rate(self, path, strategy):
+
+
+        #considerare caso divisioni per zero
+
+        GSNR = self.calculate_GSNR(path)
+
+        if strategy == 'fixed_rate':
+            if GSNR >= 2*((erfcinv(2e-3))**2)*32/12.5:
+                return 100
+            else:
+                return 0
+
+        if strategy == 'flex_rate':
+            if GSNR < 2*((erfcinv(2e-3))**2)*32/12.5:
+                return 0
+            elif 2*((erfcinv(2e-3)) ** 2)*32/12.5 <= GSNR < (14 / 3)*((erfcinv((3 / 2) * 1e-3)) ** 2)*32/12.5:
+                return 100
+            elif (14 / 3)*((erfcinv((3 / 2) * 1e-3)) ** 2)*32/12.5 <= GSNR < 10*((erfcinv((8 / 3) * 1e-3)) ** 2)*32/12.5:
+                return 200
+            elif GSNR > 10*((erfcinv((8/3)*1e-3))**2)*32/12.5:
+                return 400
+
+        if strategy == 'shannon':
+            return 2*32*np.log2(1+GSNR*12.5/32)
+
+    def calculate_GSNR(self, path):
+        path_df = self.reformat_path(path)
+        snr = self.weighted_paths[self.weighted_paths.path == path_df]['SNR [dB]'].values[0]
+
+        print(snr)
+
+        return 10 **(snr/10)
+
+
 
 class Connection:
     def __init__(self, input, output, signal_power):
@@ -371,21 +444,5 @@ class Connection:
         self.signal_power: float = signal_power
         self.latency: float = 0
         self.snr: float = 0
+        self.bit_rate = None
 
-
-if __name__ == '__main__':
-    N = Network()
-    # print(N.weighted_paths)
-    # var = N.weighted_paths[N.weighted_paths.where(
-    # N.weighted_paths['path'][0] == 'A' and N.weighted_paths['path'][-1] == 'D')]
-    # print(N.weighted_paths['path'][0] == 'A' and N.weighted_paths['path'][-1] == 'D')
-
-    conn_list = [Connection('A', 'F', 1e-4), Connection('C', 'D', 2e-4), Connection("F", "B", 3e-4)]
-
-    a = N.stream(conn_list, 'latency')
-    print(a[0].snr)
-
-    # ancora da fare commit del Connection funzionante
-
-    # problema [RISOLTO!]: il path nell'oggetto Signal_information è come lista,
-    # ma noi lo prendiamo/usiamo come stringa e questo crea problemi

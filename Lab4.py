@@ -13,6 +13,8 @@ i = 0
 nodes = list(N.nodes.keys())
 param = ''
 snrs = []
+bit_rates = []
+total_capacity = 0.0
 
 while i < 100:
     n1 = random.choices(nodes)[0]
@@ -23,16 +25,27 @@ while i < 100:
         param = 'snr'
 
         N.stream([conn], param)
-        snrs.append(conn.snr)
-        print(conn.snr)
+
+        # control to avoid errors in hist caused by saturation
+        if conn.bit_rate is not None and conn.snr != 0:
+            snrs.append(conn.snr)
+            bit_rates.append(conn.bit_rate)
+        # print(conn.snr)
+        # print(conn.bit_rate)
         i = i + 1
 
 plt.hist(snrs)
-plt.xlabel('snr')
+plt.xlabel('snr [dB]')
 plt.ylabel('cases')
+plt.show()
+
+plt.hist(bit_rates)
+plt.xlabel('bit_rate [Gbps]')
+plt.ylabel('cases')
+plt.show()
 
 print(N.weighted_paths)
 
-plt.show()
+
 
 print(N.route_space)
