@@ -20,7 +20,7 @@ while i < 100:
     n1 = random.choices(nodes)[0]
     n2 = random.choices(nodes)[0]
     if n1 != n2:
-        conn = elems.Connection(n1, n2, 1)
+        conn = elems.Connection(n1, n2, 1e-3)
 
         param = 'snr'
 
@@ -29,7 +29,7 @@ while i < 100:
         # control to avoid errors in hist caused by saturation
         if conn.bit_rate is not None and conn.snr != 0:
             snrs.append(conn.snr)
-            bit_rates.append(conn.bit_rate)
+            bit_rates.append(conn.bit_rate/1e9)
         # print(conn.snr)
         # print(conn.bit_rate)
         i = i + 1
