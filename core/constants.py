@@ -10,10 +10,16 @@ Bn = 12.5e9
 
 # physical fiber constants:
 
-gain = 16
-noise_figure = 3
+gain = 10**(16/10)
+noise_figure = 10**(3/10)
 alphadB = 0.2e-3
 beta2 = 2.13e-26
+# beta2 = 0.6e-26
 gamma = 1.27e-3
 Rs = 32e9
 df = 50e9
+
+# json file name
+# filename = "Lab7/nodes_full_shannon.json"
+# filename = "Lab7/nodes_full_shannon.json"
+filename = "resources/258350.json"

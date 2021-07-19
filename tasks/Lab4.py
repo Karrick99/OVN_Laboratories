@@ -13,6 +13,8 @@ i = 0
 nodes = list(N.nodes.keys())
 param = ''
 snrs = []
+gsnrs = []
+latencies = []
 bit_rates = []
 total_capacity = 0.0
 
@@ -31,14 +33,15 @@ while i < number_connections:
         # control to avoid errors in hist caused by saturation
         if conn.bit_rate is not None and conn.snr != 0:
             snrs.append(conn.snr)
+            gsnrs.append(conn.gsnr)
             bit_rates.append(conn.bit_rate / 1e9)
             total_capacity += conn.bit_rate
         # print(conn.snr)
         # print(conn.bit_rate)
         i = i + 1
 
-average_bit_rate = sum(bit_rates)/number_connections
-
+average_bit_rate = sum(bit_rates)/len(bit_rates)
+average_snr = 10*np.log10(sum(gsnrs)/len(gsnrs))
 
 print(N.weighted_paths)
 
@@ -51,6 +54,10 @@ print('Gbps')
 print('Average bit_rate = ', end='')
 print(average_bit_rate, end=' ')
 print('Gbps')
+
+print('Average snr = ', end='')
+print(average_snr, end=' ')
+print('dB')
 
 plt.hist(snrs)
 plt.xlabel('snr [dB]')

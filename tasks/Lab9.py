@@ -4,13 +4,20 @@ import core.Elements as elems
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import core.utils as utils
 import random
+import math
 
 N = elems.Network()
 
 i = 0
 snrs = []
+gsnrs = []
 bit_rates = []
+m_values = [0]
+free_conns = [N.total_possible_connections]
+refused_conns = [0]
+
 total_capacity = 0.0
 
 nodes = list(N.nodes.keys())
@@ -43,35 +50,82 @@ for M in range(1, 10):
             else:
                 T.at[i, j] = M * 100e9
 
+    pd.set_option("display.max_columns", None)
+    pd.set_option('display.width', None)
+    # print(T)
+
     returned_data = N.manage_connection_from_traffic_matrix(T)
 
-    if returned_data == 13:
-        print('SATURATION WITH M = ', end='')
+    m_values.append(M)
+    free_conns.append(returned_data[0])
+    refused_conns.append(returned_data[1])
+
+    if returned_data[2:]:
+        processed_conn_list += returned_data[2:]
+    if returned_data[0] == 0:
+        print(utils.bcolors.YELLOW + 'SATURATION WITH M = ', end='')
         print(M)
+        print(utils.bcolors.ENDC)
+        print(returned_data[1], end=' ')
+        print('connections have been rejected')
         break
-    elif returned_data != 0:
-        processed_conn_list += returned_data
+
+
+
+# print(T)
+
+occupation_percentage = []
+
+for value in free_conns:
+    occupation_percentage.append(((N.total_possible_connections-value)*100)/N.total_possible_connections)
+
+# PLOT OF OCCUPATION PERCENTAGE:
+
+plt.plot(m_values, occupation_percentage, marker='x', mec='r', ms=12)
+m_int = range(min(m_values), math.ceil(max(m_values))+1)
+plt.xticks(m_int)
+plt.xlim(0, 7)
+plt.xlabel('M value')
+plt.ylabel('occupation percentage (/possible connections)')
+plt.show()
+
+# PLOT OF REFUSED CONNECTIONS:
+
+plt.plot(m_values, refused_conns, marker='x', mec='r', ms=12)
+m_int = range(min(m_values), math.ceil(max(m_values))+1)
+plt.xticks(m_int)
+plt.xlim(0, 7)
+plt.xlabel('M value')
+plt.ylabel('refused connections')
+plt.show()
+
 
 for conn in processed_conn_list:
     snrs.append(conn.snr)
-    bit_rates.append(conn.bit_rate)
+    gsnrs.append(conn.gsnr)
+    bit_rates.append(conn.bit_rate/1e9)
 
-print(T)
 
-average_bit_rate = sum(bit_rates) / len(processed_conn_list)
+average_bit_rate = sum(bit_rates) / len(bit_rates)
+average_gsnr = sum(gsnrs)/len(gsnrs)
+
 total_capacity = sum(bit_rates)
 
-print(N.weighted_paths)
+# print(N.weighted_paths)
 
-print(N.route_space)
+# print(N.route_space)
 
-print('Total capacity = ', end='')
-print(total_capacity / 1e9, end=' ')
-print('Gbps')
+print(utils.bcolors.CYAN + 'Total capacity = ', end='')
+print(total_capacity, end=' ')
+print('Gbps' + utils.bcolors.ENDC)
 
 print('Average bit_rate = ', end='')
 print(average_bit_rate, end=' ')
 print('Gbps')
+
+print('Average GSNR = ', end='')
+print(average_gsnr, end=' ')
+print('dB')
 
 plt.hist(snrs)
 plt.xlabel('snr [dB]')
@@ -84,3 +138,5 @@ plt.ylabel('cases')
 plt.show()
 
 N.draw()
+
+# print(utils.bcolors.YELLOW + "Text here" + utils.bcolors.ENDC)
