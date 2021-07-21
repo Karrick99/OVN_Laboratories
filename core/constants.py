@@ -22,4 +22,4 @@ df = 50e9
 # json file name
 # filename = "Lab7/nodes_full_shannon.json"
 # filename = "Lab7/nodes_full_shannon.json"
-filename = "resources/258350.json"
+filename = "resources/258350_full_flex_rate.json"

@@ -23,26 +23,11 @@ total_capacity = 0.0
 nodes = list(N.nodes.keys())
 T = pd.DataFrame(columns=nodes, index=nodes)
 
-# totally random situation:
-
-# for M in range(1, 10):
-#    for i in nodes:
-#        for j in nodes:
-#            x = random.randint(1, 3)
-#            if i == j:
-#                T.at[i, j] = 0
-#            elif x == 1:
-#                T.at[i, j] = 0
-#            elif x == 2:
-#                T.at[i, j] = np.Inf
-#            elif x == 3:
-#                T.at[i, j] = M * 100e9
-
-# uniform traffic matrix
-
 processed_conn_list = []
 
-for M in range(1, 20):
+for M in range(1, 50):
+    N = elems.Network()
+    total_capacity = 0.0
     for i in nodes:
         for j in nodes:
             if i == j:
@@ -58,17 +43,15 @@ for M in range(1, 20):
 
     m_values.append(M)
     free_conns.append(returned_data[0])
-    refused_conns.append(returned_data[1])
+    refused_conns.append((returned_data[1]/20)*100)
 
     if returned_data[2:]:
-        processed_conn_list += returned_data[2:]
+        processed_conn_list = returned_data[2:]
+
     if returned_data[0] == 0:
         print(utils.bcolors.YELLOW + 'SATURATION WITH M = ', end='')
         print(M)
         print(utils.bcolors.ENDC)
-        print(returned_data[1], end=' ')
-        print('connections have been rejected')
-        break
 
 
 
@@ -81,22 +64,22 @@ for value in free_conns:
 
 # PLOT OF OCCUPATION PERCENTAGE:
 
-plt.plot(m_values, occupation_percentage, marker='x', mec='r', ms=12)
+plt.plot(m_values, occupation_percentage, marker='.', mec='r', ms=12)
 m_int = range(min(m_values), math.ceil(max(m_values))+1)
-plt.xticks(m_int)
-plt.xlim(0, 7)
+#plt.xticks(m_int)
+#plt.xlim(m_values[0], m_values[-1])
 plt.xlabel('M value')
-plt.ylabel('occupation percentage (/possible connections)')
+plt.ylabel('occupation percentage')
 plt.show()
 
 # PLOT OF REFUSED CONNECTIONS:
 
-plt.plot(m_values, refused_conns, marker='x', mec='r', ms=12)
+plt.plot(m_values, refused_conns, marker='.', mec='r', ms=12)
 m_int = range(min(m_values), math.ceil(max(m_values))+1)
-plt.xticks(m_int)
-plt.xlim(0, 7)
+#plt.xticks(m_int)
+#plt.xlim(m_values[0], m_values[-1])
 plt.xlabel('M value')
-plt.ylabel('refused connections')
+plt.ylabel('refused connections percentage')
 plt.show()
 
 
@@ -110,10 +93,6 @@ average_bit_rate = sum(bit_rates) / len(bit_rates)
 average_gsnr = sum(gsnrs)/len(gsnrs)
 
 total_capacity = sum(bit_rates)
-
-# print(N.weighted_paths)
-
-# print(N.route_space)
 
 print(utils.bcolors.CYAN + 'Total capacity = ', end='')
 print(total_capacity, end=' ')
@@ -143,5 +122,3 @@ plt.hist(latencies)
 plt.xlabel('latency')
 plt.ylabel('number of paths')
 plt.show()
-
-# print(utils.bcolors.YELLOW + "Text here" + utils.bcolors.ENDC)

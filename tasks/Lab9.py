@@ -1,11 +1,9 @@
 from typing import List
 
 import core.Elements as elems
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import core.utils as utils
-import random
 import math
 
 N = elems.Network()
@@ -42,7 +40,7 @@ T = pd.DataFrame(columns=nodes, index=nodes)
 
 processed_conn_list = []
 
-for M in range(1, 10):
+for M in range(1, 20):
     for i in nodes:
         for j in nodes:
             if i == j:
@@ -69,8 +67,6 @@ for M in range(1, 10):
         print(returned_data[1], end=' ')
         print('connections have been rejected')
         break
-
-
 
 # print(T)
 
@@ -125,7 +121,6 @@ print('Gbps')
 
 print('Average GSNR = ', end='')
 print(average_gsnr, end=' ')
-print('dB')
 
 plt.hist(snrs)
 plt.xlabel('snr [dB]')
@@ -138,5 +133,11 @@ plt.ylabel('cases')
 plt.show()
 
 N.draw()
+
+latencies = N.weighted_paths.loc[:, 'total latency'].values
+plt.hist(latencies)
+plt.xlabel('latency')
+plt.ylabel('number of paths')
+plt.show()
 
 # print(utils.bcolors.YELLOW + "Text here" + utils.bcolors.ENDC)

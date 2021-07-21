@@ -164,7 +164,6 @@ class Network:
         self.lines = {}
         self.weighted_paths = None
         self.route_space = None
-        self.saturation_percentage = 0.0
         self.rejected_connections = 0
         self.total_possible_connections = 0
 
